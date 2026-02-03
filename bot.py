@@ -108,7 +108,7 @@ ytdl_format_options = {
 # Stealth and Client Emulation
 ytdl_format_options['extractor_args'] = {
     'youtube': {
-        'player_client': ['android', 'ios', 'web'],
+        'player_client': ['android', 'web'],
         'player_skip': ['webpage', 'configs'],
     }
 }
@@ -426,19 +426,22 @@ class Music(commands.Cog):
         else:
             await interaction.response.send_message("You are not connected to a voice channel.", ephemeral=True)
 
-    @app_commands.command(name="play", description="Plays a song or adds to queue")
-    @app_commands.describe(query="The song/url you want to play")
-    async def play(self, interaction: discord.Interaction, query: str):
+    @app_commands.command(name="play", description="Play a song from YouTube or Spotify")
+    async def play(self, interaction: discord.Interaction, search: str):
         if not self.check_channel(interaction):
             return await interaction.response.send_message(f"🚫 I can only be used in the #ჭაჭing channel!", ephemeral=True)
 
         if not interaction.user.voice:
              return await interaction.response.send_message("You are not connected to a voice channel.", ephemeral=True)
-             
+
+        # Defer immediately to avoid "Unknown Interaction" timeout
+        await interaction.response.defer()
+        
         if not interaction.guild.voice_client:
              await interaction.user.voice.channel.connect()
-        
-        await interaction.response.defer()
+
+        # Handle Spotify Links
+        query = await resolve_spotify_track(search)
 
         # Resolve query (Playlist vs Single)
         songs_to_add = []

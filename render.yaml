@@ -3,8 +3,8 @@ services:
     name: discord-music-bot
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    buildCommand: chmod +x render_build.sh && ./render_build.sh
+    startCommand: export PATH="$PWD/node/bin:$PATH" && python bot.py
     envVars:
       - key: DISCORD_TOKEN
         sync: false
