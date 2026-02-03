@@ -7,6 +7,8 @@ services:
     startCommand: python bot.py
     envVars:
       - key: DISCORD_TOKEN
-        sync: false # User will set this in the dashboard
+        sync: false
+      - key: MONGO_URI
+        sync: false
       - key: PORT
         value: 8080

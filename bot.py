@@ -12,6 +12,16 @@ import json
 
 load_dotenv()
 
+import pymongo
+# Use MongoDB for persistence on Render
+MONGO_URI = os.getenv('MONGO_URI')
+if MONGO_URI:
+    mongo_client = pymongo.MongoClient(MONGO_URI)
+    db = mongo_client['music_bot']
+    playlists_col = db['playlists']
+else:
+    playlists_col = None
+
 from flask import Flask
 from threading import Thread
 
@@ -34,6 +44,15 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 PLAYLIST_FILE = 'playlists.json'
 
 def load_playlists():
+    if playlists_col is not None:
+        try:
+            doc = playlists_col.find_one({"_id": "global_playlists"})
+            if doc:
+                return doc.get('data', {})
+        except Exception as e:
+            print(f"MongoDB Load Error: {e}")
+            
+    # Fallback to local file for development or if DB fails
     if os.path.exists(PLAYLIST_FILE):
         try:
             with open(PLAYLIST_FILE, 'r') as f:
@@ -43,6 +62,18 @@ def load_playlists():
     return {}
 
 def save_playlists(data):
+    if playlists_col is not None:
+        try:
+            playlists_col.update_one(
+                {"_id": "global_playlists"},
+                {"$set": {"data": data}},
+                upsert=True
+            )
+            return
+        except Exception as e:
+            print(f"MongoDB Save Error: {e}")
+
+    # Fallback/Local
     with open(PLAYLIST_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 

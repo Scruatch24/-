@@ -5,3 +5,4 @@ appdirs
 imageio-ffmpeg
 Flask
 gunicorn
+pymongo[srv]
