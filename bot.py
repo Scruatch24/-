@@ -106,21 +106,21 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    # Fallback to OAuth2 if cookies fail/are missing
-    'username': 'oauth2', 
-    'password': '',
-    # Mimic a real browser
-    # 'http_headers': { 'User-Agent': ... } # Let yt-dlp manage this
+    # Mimic mobile client to bypass some data center blocks
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web'],
+            'skip': ['dash', 'hls']
+        }
+    }
 }
 
 # Check for cookies file to avoid bot detection
 if os.path.exists('cookies.txt'):
     print("🍪 cookies.txt found. Enabling authentication...")
     ytdl_format_options['cookiefile'] = 'cookies.txt'
-    # Additional flags that help when using cookies
-    ytdl_format_options['youtube_include_dash_manifest'] = False
 else:
-    print("⚠️ No cookies.txt found! Using OAuth2 as fallback.")
+    print("⚠️ No cookies.txt found!")
 
 # Base ffmpeg options
 ffmpeg_options = {
