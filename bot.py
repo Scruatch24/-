@@ -106,13 +106,15 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    # Mimic mobile client to bypass some data center blocks
+    # Stealth and Client Emulation
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web'],
-            'skip': ['dash', 'hls']
+            'player_client': ['ios', 'mweb'],
+            'player_skip': ['webpage', 'configs'],
         }
-    }
+    },
+    'socket_timeout': 10,
+    'retries': 3,
 }
 
 # Check for cookies file to avoid bot detection
