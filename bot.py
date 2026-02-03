@@ -106,13 +106,11 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
+    # Fallback to OAuth2 if cookies fail/are missing
+    'username': 'oauth2', 
+    'password': '',
     # Mimic a real browser
-    'http_headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Sec-Fetch-Mode': 'navigate',
-    }
+    # 'http_headers': { 'User-Agent': ... } # Let yt-dlp manage this
 }
 
 # Check for cookies file to avoid bot detection
@@ -122,7 +120,7 @@ if os.path.exists('cookies.txt'):
     # Additional flags that help when using cookies
     ytdl_format_options['youtube_include_dash_manifest'] = False
 else:
-    print("⚠️ No cookies.txt found! Bot detection is likely to fail.")
+    print("⚠️ No cookies.txt found! Using OAuth2 as fallback.")
 
 # Base ffmpeg options
 ffmpeg_options = {
@@ -554,7 +552,18 @@ class Music(commands.Cog):
                 self.voice_states[guild_id] = False
                 import traceback
                 traceback.print_exc()
-                await interaction.followup.send(f"An error occurred: {e}")
+                
+                # Safe error reporting
+                err_msg = f"An error occurred: {e}"
+                try:
+                    if not interaction.response.is_done():
+                        await interaction.followup.send(err_msg, ephemeral=True)
+                    else:
+                        # If we already deferred/replied, use followup
+                         await interaction.followup.send(err_msg, ephemeral=True)
+                except:
+                    pass
+                
                 # Try to play next if this failed but we added stuff to queue
                 if queued_count > 0:
                      await self.play_next(interaction)
@@ -563,7 +572,11 @@ class Music(commands.Cog):
             msg = f"Added **{queued_count}** songs to queue."
             if queued_count == 1:
                  msg = f"Added to queue: **{songs_to_add[0]}**" # Might be raw url
-            await interaction.followup.send(msg)
+            
+            if not interaction.response.is_done():
+                await interaction.followup.send(msg)
+            else:
+                await interaction.followup.send(msg)
 
     # Playlist Group
     playlist_group = app_commands.Group(name="playlist", description="Manage your playlists")
