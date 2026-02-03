@@ -9,123 +9,45 @@ import imageio_ffmpeg
 import time
 import collections
 import json
+import pymongo
+from pymongo import MongoClient
+import threading
+from flask import Flask
 
 load_dotenv()
-import shutil
-import imageio_ffmpeg
-
-# Add locally installed binaries to PATH
-current_dir = os.getcwd()
-node_dir = os.path.join(current_dir, 'node')
-node_bin_path = os.path.join(node_dir, 'bin')
-ffmpeg_dir = os.path.join(current_dir, 'ffmpeg')
-
-# Prepare explicit paths (Render specific)
-explicit_node_path = None
-explicit_ffmpeg_path = None
-
-# 1. Setup Node.js 
-if os.path.exists(node_bin_path):
-    # RENDER CASE
-    print(f"Checking Render Node path: {node_bin_path}")
-    os.environ['PATH'] = node_bin_path + os.pathsep + os.environ['PATH']
-    node_exe = 'node' # Linux default
-    potential_node = os.path.join(node_bin_path, node_exe)
-    if os.path.exists(potential_node):
-        try:
-             os.chmod(potential_node, 0o755)
-        except:
-             pass
-        explicit_node_path = potential_node
-else:
-    # LOCAL CASE: Find system node
-    system_node = shutil.which('node')
-    if system_node:
-        explicit_node_path = system_node
-
-# 2. Setup FFmpeg
-if os.path.exists(ffmpeg_dir):
-    # RENDER CASE
-    print(f"Checking Render FFmpeg path: {ffmpeg_dir}")
-    os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ['PATH']
-    ffmpeg_exe = 'ffmpeg' # Linux default
-    potential_ffmpeg = os.path.join(ffmpeg_dir, ffmpeg_exe)
-    if os.path.exists(potential_ffmpeg):
-         try:
-             os.chmod(potential_ffmpeg, 0o755)
-         except:
-             pass
-         explicit_ffmpeg_path = potential_ffmpeg
-         print(f"✅ Found static FFmpeg at: {explicit_ffmpeg_path}")
-else:
-    # LOCAL CASE: Use imageio-ffmpeg
-    try:
-        explicit_ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-        print(f"✅ Found local FFmpeg via imageio: {explicit_ffmpeg_path}")
-    except:
-        pass
-
-# Debug: Verify Node Execution (General)
-import subprocess
-try:
-    # Try explicitly first if found
-    if explicit_node_path:
-        test_out = subprocess.check_output([explicit_node_path, '--version'], text=True).strip()
-        print(f"✅ Executed Node.js successfully: {test_out}")
-    else:
-        print("❌ Could not find any Node.js executable!")
-except Exception as e:
-    print(f"❌ Failed to find/execute Node.js: {e}")
-
-# Verify cookies existence
-if os.path.exists('cookies.txt'):
-    print("🍪 cookies.txt found in directory.")
-else:
-    print("⚠️ WARNING: cookies.txt NOT found in directory!")
-
-import pymongo
-# Use MongoDB for persistence on Render
-MONGO_URI = os.getenv('MONGO_URI')
-if MONGO_URI:
-    print("🔌 Connecting to MongoDB...")
-    mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client['music_bot']
-    playlists_col = db['playlists']
-else:
-    print("ℹ️ No MONGO_URI found. Using local storage.")
-    playlists_col = None
-
-from flask import Flask
-from threading import Thread
-
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run_flask():
-    # Render specifies the port in the PORT environment variable
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
 
 TOKEN = os.getenv('DISCORD_TOKEN')
+MONGO_URI = os.getenv('MONGO_URI')
 PLAYLIST_FILE = 'playlists.json'
 
+# MongoDB Setup
+if MONGO_URI:
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client['music_bot']
+        playlists_col = db['playlists']
+        using_mongo = True
+        print("Connected to MongoDB for playlists.")
+    except Exception as e:
+        print(f"Failed to connect to MongoDB: {e}. Falling back to local file.")
+        using_mongo = False
+else:
+    using_mongo = False
+
 def load_playlists():
-    if playlists_col is not None:
+    if using_mongo:
         try:
-            doc = playlists_col.find_one({"_id": "global_playlists"})
-            if doc:
-                return doc.get('data', {})
+            # We store all playlists in one document or per user? 
+            # Looking at original code, it's user_id -> {playlist_name: [songs]}
+            all_data = {}
+            for doc in playlists_col.find():
+                user_id = doc['user_id']
+                all_data[user_id] = doc['playlists']
+            return all_data
         except Exception as e:
-            print(f"MongoDB Load Error: {e}")
+            print(f"Error loading from MongoDB: {e}")
+            return {}
             
-    # Fallback to local file for development or if DB fails
     if os.path.exists(PLAYLIST_FILE):
         try:
             with open(PLAYLIST_FILE, 'r') as f:
@@ -134,19 +56,40 @@ def load_playlists():
             return {}
     return {}
 
-def save_playlists(data):
-    if playlists_col is not None:
-        try:
-            playlists_col.update_one(
-                {"_id": "global_playlists"},
-                {"$set": {"data": data}},
-                upsert=True
-            )
-            return
-        except Exception as e:
-            print(f"MongoDB Save Error: {e}")
+def save_playlists_to_mongo(user_id, name, songs, deletion=False):
+    if not using_mongo:
+        return
+    try:
+        if deletion and name is None:
+            # Delete whole user data? No, original had per-user dict
+            playlists_col.delete_one({'user_id': user_id})
+        else:
+            # Update specific user's playlists
+            doc = playlists_col.find_one({'user_id': user_id})
+            if doc:
+                playlists = doc.get('playlists', {})
+                if deletion:
+                    if name in playlists:
+                        del playlists[name]
+                else:
+                    playlists[name] = songs
+                playlists_col.update_one({'user_id': user_id}, {'$set': {'playlists': playlists}}, upsert=True)
+            else:
+                if not deletion:
+                    playlists_col.insert_one({'user_id': user_id, 'playlists': {name: songs}})
+    except Exception as e:
+        print(f"Error saving to MongoDB: {e}")
 
-    # Fallback/Local
+def save_playlists(data):
+    # This is the old monolithic save. For MongoDB we might want more granular updates
+    # but to keep compatibility with existing code structure:
+    if using_mongo:
+        # We don't want to re-upload everything every time ideally, 
+        # but the bot's logic calls this after any change.
+        for user_id, playlists in data.items():
+            playlists_col.update_one({'user_id': user_id}, {'$set': {'playlists': playlists}}, upsert=True)
+        return
+
     with open(PLAYLIST_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
@@ -165,43 +108,13 @@ ytdl_format_options = {
     'no_warnings': True,
     'default_search': 'auto',
     'source_address': '0.0.0.0',
-    'extract_flat': False,
-    # Use a robust format string with fallback
-    'format': 'bestaudio/best',
-    'format_sort': ['abr', 'acodec', 'ext'],
-    # Stealth and Client Emulation
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['android', 'web'],
-            'player_skip': ['webpage', 'configs'],
-        }
-    },
-    'socket_timeout': 15,
-    'retries': 5,
-    'ignore_non_native_frag': True,
-    # Fix "No supported JavaScript runtime" error
-    # We must explicitly tell yt-dlp to use 'node' if it defaults to only 'deno'
+    'extract_flat': False, # Ensure we get full info for audio quality selection
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
 }
-
-# If we found an explicit path to node, use it.
-if explicit_node_path:
-    print(f"🔧 Configuring yt-dlp to use Node.js at: {explicit_node_path}")
-    ytdl_format_options['js_runtimes'] = {
-        'node': {'args': [explicit_node_path]}
-    }
-else:
-    print("⚠️ No Node.js found. Bot detection may fail.")
-
-# If we found ffmpeg, tell yt-dlp where it is
-if explicit_ffmpeg_path:
-    ytdl_format_options['ffmpeg_location'] = explicit_ffmpeg_path
-
-# Check for cookies file to avoid bot detection
-if os.path.exists('cookies.txt'):
-    print("🍪 cookies.txt found. Enabling authentication...")
-    ytdl_format_options['cookiefile'] = 'cookies.txt'
-else:
-    print("⚠️ No cookies.txt found!")
 
 # Base ffmpeg options
 ffmpeg_options = {
@@ -506,25 +419,19 @@ class Music(commands.Cog):
         else:
             await interaction.response.send_message("You are not connected to a voice channel.", ephemeral=True)
 
-    @app_commands.command(name="play", description="Play a song from YouTube or Spotify")
-    async def play(self, interaction: discord.Interaction, search: str):
-        # Defer IMMEDIATELY before doing ANYTHING else
-        await interaction.response.defer()
-
+    @app_commands.command(name="play", description="Plays a song or adds to queue")
+    @app_commands.describe(query="The song/url you want to play")
+    async def play(self, interaction: discord.Interaction, query: str):
         if not self.check_channel(interaction):
-            return await interaction.followup.send(f"🚫 I can only be used in the #ჭაჭing channel!", ephemeral=True)
+            return await interaction.response.send_message(f"🚫 I can only be used in the #ჭაჭing channel!", ephemeral=True)
 
         if not interaction.user.voice:
-             return await interaction.followup.send("You are not connected to a voice channel.", ephemeral=True)
-        
+             return await interaction.response.send_message("You are not connected to a voice channel.", ephemeral=True)
+             
         if not interaction.guild.voice_client:
-             try:
-                 await interaction.user.voice.channel.connect()
-             except Exception as e:
-                 return await interaction.followup.send(f"Could not connect to voice: {e}")
-
-        # Handle Spotify Links
-        query = await resolve_spotify_track(search)
+             await interaction.user.voice.channel.connect()
+        
+        await interaction.response.defer()
 
         # Resolve query (Playlist vs Single)
         songs_to_add = []
@@ -639,18 +546,7 @@ class Music(commands.Cog):
                 self.voice_states[guild_id] = False
                 import traceback
                 traceback.print_exc()
-                
-                # Safe error reporting
-                err_msg = f"An error occurred: {e}"
-                try:
-                    if not interaction.response.is_done():
-                        await interaction.followup.send(err_msg, ephemeral=True)
-                    else:
-                        # If we already deferred/replied, use followup
-                         await interaction.followup.send(err_msg, ephemeral=True)
-                except:
-                    pass
-                
+                await interaction.followup.send(f"An error occurred: {e}")
                 # Try to play next if this failed but we added stuff to queue
                 if queued_count > 0:
                      await self.play_next(interaction)
@@ -659,11 +555,7 @@ class Music(commands.Cog):
             msg = f"Added **{queued_count}** songs to queue."
             if queued_count == 1:
                  msg = f"Added to queue: **{songs_to_add[0]}**" # Might be raw url
-            
-            if not interaction.response.is_done():
-                await interaction.followup.send(msg)
-            else:
-                await interaction.followup.send(msg)
+            await interaction.followup.send(msg)
 
     # Playlist Group
     playlist_group = app_commands.Group(name="playlist", description="Manage your playlists")
@@ -867,9 +759,20 @@ async def on_ready():
 
 if __name__ == "__main__":
     if not TOKEN:
-        print("❌ CRITICAL: DISCORD_TOKEN not found in environment!")
+        print("Error: DISCORD_TOKEN not found in .env file.")
     else:
-        print("🚀 Starting Flask health-check server...")
-        keep_alive()
-        print("✅ Health-check server is live. Connecting to Discord...")
+        # Start Keep-Alive Server
+        app = Flask('')
+        @app.route('/')
+        def home():
+            return "Bot is alive!"
+        
+        def run_keep_alive():
+            # Use port from env (standard for cloud hosts) or default to 8080
+            port = int(os.environ.get('PORT', 8080))
+            app.run(host='0.0.0.0', port=port)
+
+        t = threading.Thread(target=run_keep_alive)
+        t.start()
+        
         bot.run(TOKEN)

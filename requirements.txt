@@ -3,6 +3,5 @@ yt-dlp
 python-dotenv
 appdirs
 imageio-ffmpeg
-Flask
-gunicorn
-pymongo[srv]
+pymongo
+flask

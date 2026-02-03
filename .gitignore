@@ -2,5 +2,6 @@
 .venv/
 __pycache__/
 *.pyc
+cookies.txt
 playlists.json
-# cookies.txt (TEMPORARILY ALLOWED TO FIX YOUTUBE ISSUE)
+.DS_Store
