@@ -3,4 +3,4 @@
 __pycache__/
 *.pyc
 playlists.json
-cookies.txt
+# cookies.txt (TEMPORARILY ALLOWED TO FIX YOUTUBE ISSUE)
