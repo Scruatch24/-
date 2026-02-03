@@ -753,7 +753,9 @@ async def on_ready():
 
 if __name__ == "__main__":
     if not TOKEN:
-        print("Error: DISCORD_TOKEN not found in .env file.")
+        print("❌ CRITICAL: DISCORD_TOKEN not found in environment!")
     else:
+        print("🚀 Starting Flask health-check server...")
         keep_alive()
+        print("✅ Health-check server is live. Connecting to Discord...")
         bot.run(TOKEN)
