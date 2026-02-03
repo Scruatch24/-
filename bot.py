@@ -12,35 +12,55 @@ import json
 
 load_dotenv()
 
-# Add locally installed node to PATH (for Render)
+# Add locally installed binaries to PATH
 current_dir = os.getcwd()
 node_dir = os.path.join(current_dir, 'node')
 node_bin_path = os.path.join(node_dir, 'bin')
+ffmpeg_dir = os.path.join(current_dir, 'ffmpeg')
 
-# Prepare explicit node path variable
+# Prepare explicit paths
 explicit_node_path = None
+explicit_ffmpeg_path = None
 
+# 1. Setup Node.js
 if os.path.exists(node_bin_path):
     os.environ['PATH'] = node_bin_path + os.pathsep + os.environ['PATH']
-    print(f"✅ Added {node_bin_path} to PATH")
-    
-    # Check for node executable
-    node_exe = 'node'
-    if os.name == 'nt':
-        node_exe = 'node.exe'
-    
+    # Check for executable
+    node_exe = 'node.exe' if os.name == 'nt' else 'node'
     potential_node = os.path.join(node_bin_path, node_exe)
     if os.path.exists(potential_node):
+        # Make sure it's executable
+        try:
+             os.chmod(potential_node, 0o755)
+        except:
+             pass
         explicit_node_path = potential_node
-        print(f"✅ Found node executable at: {explicit_node_path}")
 
-# Debug: Check if node is available
+# 2. Setup FFmpeg
+if os.path.exists(ffmpeg_dir):
+    os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ['PATH']
+    ffmpeg_exe = 'ffmpeg.exe' if os.name == 'nt' else 'ffmpeg'
+    potential_ffmpeg = os.path.join(ffmpeg_dir, ffmpeg_exe)
+    if os.path.exists(potential_ffmpeg):
+         try:
+             os.chmod(potential_ffmpeg, 0o755)
+         except:
+             pass
+         explicit_ffmpeg_path = potential_ffmpeg
+         print(f"✅ Found static FFmpeg at: {explicit_ffmpeg_path}")
+
+# Debug: Verify Node Execution
 import subprocess
 try:
-    node_version = subprocess.check_output(['node', '--version'], text=True).strip()
-    print(f"✅ Node.js found in PATH: {node_version}")
-except:
-    print("❌ Node.js NOT found in PATH")
+    if explicit_node_path:
+        test_out = subprocess.check_output([explicit_node_path, '--version'], text=True).strip()
+        print(f"✅ Executed Node.js successfully: {test_out}")
+    else:
+        print("⚠️ explicit_node_path is None, checking system node...")
+        test_out = subprocess.check_output(['node', '--version'], text=True).strip()
+        print(f"✅ System Node.js found: {test_out}")
+except Exception as e:
+    print(f"❌ Failed to execute Node.js: {e}")
 
 # Verify cookies existence
 if os.path.exists('cookies.txt'):
@@ -137,7 +157,7 @@ ytdl_format_options = {
     # Stealth and Client Emulation
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web'],
+            'player_client': ['ios', 'web'],
             'player_skip': ['webpage', 'configs'],
         }
     },
