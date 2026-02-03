@@ -106,11 +106,23 @@ ytdl_format_options = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
+    # Mimic a real browser
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Fetch-Mode': 'navigate',
+    }
 }
 
 # Check for cookies file to avoid bot detection
 if os.path.exists('cookies.txt'):
+    print("🍪 cookies.txt found. Enabling authentication...")
     ytdl_format_options['cookiefile'] = 'cookies.txt'
+    # Additional flags that help when using cookies
+    ytdl_format_options['youtube_include_dash_manifest'] = False
+else:
+    print("⚠️ No cookies.txt found! Bot detection is likely to fail.")
 
 # Base ffmpeg options
 ffmpeg_options = {
