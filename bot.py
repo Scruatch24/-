@@ -12,6 +12,21 @@ import json
 
 load_dotenv()
 
+# Add locally installed node to PATH (for Render)
+current_dir = os.getcwd()
+node_bin_path = os.path.join(current_dir, 'node', 'bin')
+if os.path.exists(node_bin_path):
+    os.environ['PATH'] = node_bin_path + os.pathsep + os.environ['PATH']
+    print(f"✅ Added {node_bin_path} to PATH")
+
+# Debug: Check if node is available
+import subprocess
+try:
+    node_version = subprocess.check_output(['node', '--version'], text=True).strip()
+    print(f"✅ Node.js found: {node_version}")
+except:
+    print("❌ Node.js NOT found in PATH")
+
 # Verify cookies existence
 if os.path.exists('cookies.txt'):
     print("🍪 cookies.txt found in directory.")
@@ -429,17 +444,20 @@ class Music(commands.Cog):
 
     @app_commands.command(name="play", description="Play a song from YouTube or Spotify")
     async def play(self, interaction: discord.Interaction, search: str):
+        # Defer IMMEDIATELY before doing ANYTHING else
+        await interaction.response.defer()
+
         if not self.check_channel(interaction):
-            return await interaction.response.send_message(f"🚫 I can only be used in the #ჭაჭing channel!", ephemeral=True)
+            return await interaction.followup.send(f"🚫 I can only be used in the #ჭაჭing channel!", ephemeral=True)
 
         if not interaction.user.voice:
-             return await interaction.response.send_message("You are not connected to a voice channel.", ephemeral=True)
-
-        # Defer immediately to avoid "Unknown Interaction" timeout
-        await interaction.response.defer()
+             return await interaction.followup.send("You are not connected to a voice channel.", ephemeral=True)
         
         if not interaction.guild.voice_client:
-             await interaction.user.voice.channel.connect()
+             try:
+                 await interaction.user.voice.channel.connect()
+             except Exception as e:
+                 return await interaction.followup.send(f"Could not connect to voice: {e}")
 
         # Handle Spotify Links
         query = await resolve_spotify_track(search)

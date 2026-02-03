@@ -6,4 +6,3 @@ imageio-ffmpeg
 Flask
 gunicorn
 pymongo[srv]
-dukpy
