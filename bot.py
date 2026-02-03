@@ -151,10 +151,15 @@ ytdl_format_options = {
 # If we found an explicit path to node, use it, otherwise just try 'node'
 if explicit_node_path:
     print(f"🔧 Configuring yt-dlp to use Node.js at: {explicit_node_path}")
-    ytdl_format_options['js_runtimes'] = [('node', explicit_node_path)]
+    # New Format: dict of {runtime: {config}}
+    ytdl_format_options['js_runtimes'] = {
+        'node': {'args': [explicit_node_path]}
+    }
 else:
     print("🔧 Configuring yt-dlp to use generic 'node'")
-    ytdl_format_options['js_runtimes'] = ['node']
+    ytdl_format_options['js_runtimes'] = {
+        'node': {}
+    }
 
 # Check for cookies file to avoid bot detection
 if os.path.exists('cookies.txt'):
