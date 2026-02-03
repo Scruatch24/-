@@ -15,17 +15,27 @@ load_dotenv()
 # Write cookies from environment variable if it exists (for Render)
 COOKIES_CONTENT = os.getenv('YOUTUBE_COOKIES')
 if COOKIES_CONTENT:
-    with open('cookies.txt', 'w') as f:
-        f.write(COOKIES_CONTENT)
+    print("🍪 YOUTUBE_COOKIES found in environment. Writing to cookies.txt...")
+    try:
+        # Ensure we write exactly what's in the env var without extra formatting
+        with open('cookies.txt', 'w', encoding='utf-8') as f:
+            f.write(COOKIES_CONTENT.strip())
+        print(f"✅ cookies.txt created ({len(COOKIES_CONTENT)} chars)")
+    except Exception as e:
+        print(f"❌ Failed to write cookies.txt: {e}")
+else:
+    print("ℹ️ No YOUTUBE_COOKIES found in environment.")
 
 import pymongo
 # Use MongoDB for persistence on Render
 MONGO_URI = os.getenv('MONGO_URI')
 if MONGO_URI:
+    print("🔌 Connecting to MongoDB...")
     mongo_client = pymongo.MongoClient(MONGO_URI)
     db = mongo_client['music_bot']
     playlists_col = db['playlists']
 else:
+    print("ℹ️ No MONGO_URI found. Using local storage.")
     playlists_col = None
 
 from flask import Flask
