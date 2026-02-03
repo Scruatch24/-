@@ -101,21 +101,20 @@ ytdl_format_options = {
     'default_search': 'auto',
     'source_address': '0.0.0.0',
     'extract_flat': False,
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-    # Stealth and Client Emulation
-    'extractor_args': {
-        'youtube': {
-            'player_client': ['ios', 'mweb'],
-            'player_skip': ['webpage', 'configs'],
-        }
-    },
-    'socket_timeout': 10,
-    'retries': 3,
+    # Use a more flexible format string for music
+    'format': 'bestaudio/best',
 }
+
+# Stealth and Client Emulation
+ytdl_format_options['extractor_args'] = {
+    'youtube': {
+        'player_client': ['android', 'ios', 'web'],
+        'player_skip': ['webpage', 'configs'],
+    }
+}
+ytdl_format_options['socket_timeout'] = 15
+ytdl_format_options['retries'] = 5
+ytdl_format_options['ignore_non_native_frag'] = True
 
 # Check for cookies file to avoid bot detection
 if os.path.exists('cookies.txt'):
