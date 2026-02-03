@@ -10,5 +10,7 @@ services:
         sync: false
       - key: MONGO_URI
         sync: false
+      - key: YOUTUBE_COOKIES
+        sync: false
       - key: PORT
         value: 8080

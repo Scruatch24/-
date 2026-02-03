@@ -12,6 +12,12 @@ import json
 
 load_dotenv()
 
+# Write cookies from environment variable if it exists (for Render)
+COOKIES_CONTENT = os.getenv('YOUTUBE_COOKIES')
+if COOKIES_CONTENT:
+    with open('cookies.txt', 'w') as f:
+        f.write(COOKIES_CONTENT)
+
 import pymongo
 # Use MongoDB for persistence on Render
 MONGO_URI = os.getenv('MONGO_URI')
@@ -92,13 +98,17 @@ ytdl_format_options = {
     'no_warnings': True,
     'default_search': 'auto',
     'source_address': '0.0.0.0',
-    'extract_flat': False, # Ensure we get full info for audio quality selection
+    'extract_flat': False,
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
 }
+
+# Check for cookies file to avoid bot detection
+if os.path.exists('cookies.txt'):
+    ytdl_format_options['cookiefile'] = 'cookies.txt'
 
 # Base ffmpeg options
 ffmpeg_options = {
