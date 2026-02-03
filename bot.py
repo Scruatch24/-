@@ -101,8 +101,9 @@ ytdl_format_options = {
     'default_search': 'auto',
     'source_address': '0.0.0.0',
     'extract_flat': False,
-    # Use a more flexible format string for music
+    # Use a robust format string with fallback
     'format': 'bestaudio/best',
+    'format_sort': ['abr', 'acodec', 'ext'],
 }
 
 # Stealth and Client Emulation
