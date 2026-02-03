@@ -14,16 +14,31 @@ load_dotenv()
 
 # Add locally installed node to PATH (for Render)
 current_dir = os.getcwd()
-node_bin_path = os.path.join(current_dir, 'node', 'bin')
+node_dir = os.path.join(current_dir, 'node')
+node_bin_path = os.path.join(node_dir, 'bin')
+
+# Prepare explicit node path variable
+explicit_node_path = None
+
 if os.path.exists(node_bin_path):
     os.environ['PATH'] = node_bin_path + os.pathsep + os.environ['PATH']
     print(f"✅ Added {node_bin_path} to PATH")
+    
+    # Check for node executable
+    node_exe = 'node'
+    if os.name == 'nt':
+        node_exe = 'node.exe'
+    
+    potential_node = os.path.join(node_bin_path, node_exe)
+    if os.path.exists(potential_node):
+        explicit_node_path = potential_node
+        print(f"✅ Found node executable at: {explicit_node_path}")
 
 # Debug: Check if node is available
 import subprocess
 try:
     node_version = subprocess.check_output(['node', '--version'], text=True).strip()
-    print(f"✅ Node.js found: {node_version}")
+    print(f"✅ Node.js found in PATH: {node_version}")
 except:
     print("❌ Node.js NOT found in PATH")
 
@@ -119,18 +134,27 @@ ytdl_format_options = {
     # Use a robust format string with fallback
     'format': 'bestaudio/best',
     'format_sort': ['abr', 'acodec', 'ext'],
+    # Stealth and Client Emulation
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web'],
+            'player_skip': ['webpage', 'configs'],
+        }
+    },
+    'socket_timeout': 15,
+    'retries': 5,
+    'ignore_non_native_frag': True,
+    # Fix "No supported JavaScript runtime" error
+    # We must explicitly tell yt-dlp to use 'node' if it defaults to only 'deno'
 }
 
-# Stealth and Client Emulation
-ytdl_format_options['extractor_args'] = {
-    'youtube': {
-        'player_client': ['android', 'web'],
-        'player_skip': ['webpage', 'configs'],
-    }
-}
-ytdl_format_options['socket_timeout'] = 15
-ytdl_format_options['retries'] = 5
-ytdl_format_options['ignore_non_native_frag'] = True
+# If we found an explicit path to node, use it, otherwise just try 'node'
+if explicit_node_path:
+    print(f"🔧 Configuring yt-dlp to use Node.js at: {explicit_node_path}")
+    ytdl_format_options['js_runtimes'] = [('node', explicit_node_path)]
+else:
+    print("🔧 Configuring yt-dlp to use generic 'node'")
+    ytdl_format_options['js_runtimes'] = ['node']
 
 # Check for cookies file to avoid bot detection
 if os.path.exists('cookies.txt'):
