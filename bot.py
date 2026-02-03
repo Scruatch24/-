@@ -11,6 +11,8 @@ import collections
 import json
 
 load_dotenv()
+import shutil
+import imageio_ffmpeg
 
 # Add locally installed binaries to PATH
 current_dir = os.getcwd()
@@ -22,8 +24,9 @@ ffmpeg_dir = os.path.join(current_dir, 'ffmpeg')
 explicit_node_path = None
 explicit_ffmpeg_path = None
 
-# 1. Setup Node.js (Render specific check)
+# 1. Setup Node.js 
 if os.path.exists(node_bin_path):
+    # RENDER CASE
     print(f"Checking Render Node path: {node_bin_path}")
     os.environ['PATH'] = node_bin_path + os.pathsep + os.environ['PATH']
     node_exe = 'node' # Linux default
@@ -34,9 +37,15 @@ if os.path.exists(node_bin_path):
         except:
              pass
         explicit_node_path = potential_node
+else:
+    # LOCAL CASE: Find system node
+    system_node = shutil.which('node')
+    if system_node:
+        explicit_node_path = system_node
 
-# 2. Setup FFmpeg (Render specific check)
+# 2. Setup FFmpeg
 if os.path.exists(ffmpeg_dir):
+    # RENDER CASE
     print(f"Checking Render FFmpeg path: {ffmpeg_dir}")
     os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ['PATH']
     ffmpeg_exe = 'ffmpeg' # Linux default
@@ -48,6 +57,13 @@ if os.path.exists(ffmpeg_dir):
              pass
          explicit_ffmpeg_path = potential_ffmpeg
          print(f"✅ Found static FFmpeg at: {explicit_ffmpeg_path}")
+else:
+    # LOCAL CASE: Use imageio-ffmpeg
+    try:
+        explicit_ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        print(f"✅ Found local FFmpeg via imageio: {explicit_ffmpeg_path}")
+    except:
+        pass
 
 # Debug: Verify Node Execution (General)
 import subprocess
@@ -55,13 +71,9 @@ try:
     # Try explicitly first if found
     if explicit_node_path:
         test_out = subprocess.check_output([explicit_node_path, '--version'], text=True).strip()
-        print(f"✅ Executed Render Node.js successfully: {test_out}")
+        print(f"✅ Executed Node.js successfully: {test_out}")
     else:
-        # Fallback to system node
-        print("⚠️ Checking system node...")
-        test_out = subprocess.check_output(['node', '--version'], text=True).strip()
-        print(f"✅ System Node.js found: {test_out}")
-        # If system node works, we don't strictly need explicit_node_path for local
+        print("❌ Could not find any Node.js executable!")
 except Exception as e:
     print(f"❌ Failed to find/execute Node.js: {e}")
 
@@ -171,21 +183,18 @@ ytdl_format_options = {
     # We must explicitly tell yt-dlp to use 'node' if it defaults to only 'deno'
 }
 
-# If we found an explicit path to node (Render), use it. 
-# Otherwise, trust yt-dlp to find system node (Local Windows)
+# If we found an explicit path to node, use it.
 if explicit_node_path:
-    print(f"🔧 Configuring yt-dlp to use Render Node.js at: {explicit_node_path}")
+    print(f"🔧 Configuring yt-dlp to use Node.js at: {explicit_node_path}")
     ytdl_format_options['js_runtimes'] = {
         'node': {'args': [explicit_node_path]}
     }
 else:
-    print("🔧 Configuring yt-dlp to use System Node.js")
-    # Don't force 'js_runtimes' on local windows if it's already in path, 
-    # letting yt-dlp find it naturally often works better on Windows.
-    # But if we really need to force it:
-    ytdl_format_options['js_runtimes'] = {
-        'node': {}
-    }
+    print("⚠️ No Node.js found. Bot detection may fail.")
+
+# If we found ffmpeg, tell yt-dlp where it is
+if explicit_ffmpeg_path:
+    ytdl_format_options['ffmpeg_location'] = explicit_ffmpeg_path
 
 # Check for cookies file to avoid bot detection
 if os.path.exists('cookies.txt'):
