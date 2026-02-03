@@ -18,28 +18,28 @@ node_dir = os.path.join(current_dir, 'node')
 node_bin_path = os.path.join(node_dir, 'bin')
 ffmpeg_dir = os.path.join(current_dir, 'ffmpeg')
 
-# Prepare explicit paths
+# Prepare explicit paths (Render specific)
 explicit_node_path = None
 explicit_ffmpeg_path = None
 
-# 1. Setup Node.js
+# 1. Setup Node.js (Render specific check)
 if os.path.exists(node_bin_path):
+    print(f"Checking Render Node path: {node_bin_path}")
     os.environ['PATH'] = node_bin_path + os.pathsep + os.environ['PATH']
-    # Check for executable
-    node_exe = 'node.exe' if os.name == 'nt' else 'node'
+    node_exe = 'node' # Linux default
     potential_node = os.path.join(node_bin_path, node_exe)
     if os.path.exists(potential_node):
-        # Make sure it's executable
         try:
              os.chmod(potential_node, 0o755)
         except:
              pass
         explicit_node_path = potential_node
 
-# 2. Setup FFmpeg
+# 2. Setup FFmpeg (Render specific check)
 if os.path.exists(ffmpeg_dir):
+    print(f"Checking Render FFmpeg path: {ffmpeg_dir}")
     os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ['PATH']
-    ffmpeg_exe = 'ffmpeg.exe' if os.name == 'nt' else 'ffmpeg'
+    ffmpeg_exe = 'ffmpeg' # Linux default
     potential_ffmpeg = os.path.join(ffmpeg_dir, ffmpeg_exe)
     if os.path.exists(potential_ffmpeg):
          try:
@@ -49,18 +49,21 @@ if os.path.exists(ffmpeg_dir):
          explicit_ffmpeg_path = potential_ffmpeg
          print(f"✅ Found static FFmpeg at: {explicit_ffmpeg_path}")
 
-# Debug: Verify Node Execution
+# Debug: Verify Node Execution (General)
 import subprocess
 try:
+    # Try explicitly first if found
     if explicit_node_path:
         test_out = subprocess.check_output([explicit_node_path, '--version'], text=True).strip()
-        print(f"✅ Executed Node.js successfully: {test_out}")
+        print(f"✅ Executed Render Node.js successfully: {test_out}")
     else:
-        print("⚠️ explicit_node_path is None, checking system node...")
+        # Fallback to system node
+        print("⚠️ Checking system node...")
         test_out = subprocess.check_output(['node', '--version'], text=True).strip()
         print(f"✅ System Node.js found: {test_out}")
+        # If system node works, we don't strictly need explicit_node_path for local
 except Exception as e:
-    print(f"❌ Failed to execute Node.js: {e}")
+    print(f"❌ Failed to find/execute Node.js: {e}")
 
 # Verify cookies existence
 if os.path.exists('cookies.txt'):
@@ -157,7 +160,7 @@ ytdl_format_options = {
     # Stealth and Client Emulation
     'extractor_args': {
         'youtube': {
-            'player_client': ['ios', 'web'],
+            'player_client': ['android', 'web'],
             'player_skip': ['webpage', 'configs'],
         }
     },
@@ -168,15 +171,18 @@ ytdl_format_options = {
     # We must explicitly tell yt-dlp to use 'node' if it defaults to only 'deno'
 }
 
-# If we found an explicit path to node, use it, otherwise just try 'node'
+# If we found an explicit path to node (Render), use it. 
+# Otherwise, trust yt-dlp to find system node (Local Windows)
 if explicit_node_path:
-    print(f"🔧 Configuring yt-dlp to use Node.js at: {explicit_node_path}")
-    # New Format: dict of {runtime: {config}}
+    print(f"🔧 Configuring yt-dlp to use Render Node.js at: {explicit_node_path}")
     ytdl_format_options['js_runtimes'] = {
         'node': {'args': [explicit_node_path]}
     }
 else:
-    print("🔧 Configuring yt-dlp to use generic 'node'")
+    print("🔧 Configuring yt-dlp to use System Node.js")
+    # Don't force 'js_runtimes' on local windows if it's already in path, 
+    # letting yt-dlp find it naturally often works better on Windows.
+    # But if we really need to force it:
     ytdl_format_options['js_runtimes'] = {
         'node': {}
     }
